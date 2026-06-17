@@ -7,6 +7,7 @@ const App = {
     score: 0,
     answers: []
   },
+  _unlocked: false,
 
   init() {
     AudioManager.init();
@@ -21,12 +22,6 @@ const App = {
     if (target) target.classList.add('active');
     this.state.phase = phase;
 
-    // BGM
-    AudioManager.stopBGM();
-    if (phase === 'home') AudioManager.startBGM('home');
-    if (phase === 'quiz') AudioManager.startBGM('quiz');
-    if (phase === 'result') AudioManager.startBGM('result');
-
     if (phase === 'quiz') {
       this.state.currentQ = 0;
       this.state.score = 0;
@@ -40,9 +35,12 @@ const App = {
 
   bindEvents() {
     // Home CTA
-    document.getElementById('btn-start').addEventListener('click', () => {
-      AudioManager.unlock();
+    document.getElementById('btn-start').addEventListener('click', async () => {
+      await AudioManager.unlock();
+      this._unlocked = true;
       AudioManager.btnTap();
+      AudioManager.stopBGM();
+      AudioManager.startBGM('quiz');
       this.go('quiz');
     });
 
@@ -58,6 +56,8 @@ const App = {
 
     // Retry
     document.getElementById('btn-retry').addEventListener('click', () => {
+      AudioManager.stopBGM();
+      AudioManager.startBGM('home');
       this.go('home');
     });
 
@@ -115,6 +115,8 @@ const App = {
       this.state.currentQ++;
       if (this.state.currentQ >= QUIZ_DATA.length) {
         AudioManager.reveal();
+        AudioManager.stopBGM();
+        AudioManager.startBGM('result');
         this.go('result');
       } else {
         AudioManager.slide();
