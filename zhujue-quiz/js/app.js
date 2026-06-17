@@ -21,6 +21,12 @@ const App = {
     if (target) target.classList.add('active');
     this.state.phase = phase;
 
+    // BGM
+    AudioManager.stopBGM();
+    if (phase === 'home') AudioManager.startBGM('home');
+    if (phase === 'quiz') AudioManager.startBGM('quiz');
+    if (phase === 'result') AudioManager.startBGM('result');
+
     if (phase === 'quiz') {
       this.state.currentQ = 0;
       this.state.score = 0;

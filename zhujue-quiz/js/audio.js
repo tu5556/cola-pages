@@ -98,18 +98,59 @@ const AudioManager = {
     this._playTone(2000, 'triangle', 0.15, 0.1);
   },
 
-  // --- BGM 框架 (当前静默占位) ---
-  startBGM(src) {
-    if (!this.ctx || !src) return;
-    // 占位：正式 BGM 替换此处
-    if (this.bgmGain) {
-      this.bgmGain.gain.value = this.enabled ? 0.15 : 0;
+  // --- BGM 合成 ---
+  _bgmOscs: [],
+  _bgmType: null,
+
+  startBGM(type) {
+    if (!this.ctx || !this.enabled) return;
+    if (this._bgmType === type) return;
+    this.stopBGM();
+
+    this.bgmGain = this.ctx.createGain();
+    this.bgmGain.gain.value = 0;
+    this.bgmGain.connect(this.ctx.destination);
+    this._bgmType = type;
+
+    if (type === 'home') {
+      [55, 110, 165].forEach(f => {
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sine'; osc.frequency.value = f;
+        osc.connect(this.bgmGain); osc.start();
+        this._bgmOscs.push(osc);
+      });
+      this.bgmGain.gain.linearRampToValueAtTime(0.08, this.ctx.currentTime + 1);
+    } else if (type === 'quiz') {
+      [41, 82].forEach(f => {
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sine'; osc.frequency.value = f;
+        osc.connect(this.bgmGain); osc.start();
+        this._bgmOscs.push(osc);
+      });
+      this.bgmGain.gain.linearRampToValueAtTime(0.04, this.ctx.currentTime + 0.5);
+    } else if (type === 'result') {
+      [147, 220, 247, 196].forEach(f => {
+        const osc = this.ctx.createOscillator();
+        osc.type = 'triangle'; osc.frequency.value = f;
+        const subGain = this.ctx.createGain();
+        subGain.gain.value = 0.06;
+        osc.connect(subGain); subGain.connect(this.bgmGain);
+        osc.start();
+        this._bgmOscs.push(osc);
+      });
+      this.bgmGain.gain.linearRampToValueAtTime(0.12, this.ctx.currentTime + 1.5);
     }
   },
 
   stopBGM() {
-    if (this.bgmGain) {
-      this.bgmGain.gain.value = 0;
+    if (this.bgmGain && this.ctx) {
+      try { this.bgmGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.3); } catch(e) {}
     }
+    setTimeout(() => {
+      this._bgmOscs.forEach(o => { try { o.stop(); } catch(e) {} });
+      this._bgmOscs = [];
+      if (this.bgmGain) { try { this.bgmGain.disconnect(); } catch(e) {}; this.bgmGain = null; }
+      this._bgmType = null;
+    }, 350);
   }
 };
