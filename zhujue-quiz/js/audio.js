@@ -25,7 +25,7 @@ const AudioManager = {
   toggle() {
     this.enabled = !this.enabled;
     if (this.bgmGain) {
-      this.bgmGain.gain.value = this.enabled ? 0.15 : 0;
+      this.bgmGain.gain.value = this.enabled ? 0.5 : 0;
     }
     const btn = document.getElementById('audio-toggle');
     if (btn) btn.textContent = this.enabled ? '🔊' : '🔇';
@@ -98,61 +98,52 @@ const AudioManager = {
     this._playTone(2000, 'triangle', 0.15, 0.1);
   },
 
-  // --- BGM ---
-  _bgmOscs: [],
+  // --- BGM (单曲贯穿，不同页面不同音量) ---
   _bgmSrc: null,
   _bgmBuffer: null,
-  _bgmType: null,
+  _bgmStarted: false,
 
-  _loadBGM(url, callback) {
-    if (this._bgmBuffer) return callback(this._bgmBuffer);
-    fetch(url).then(r => r.arrayBuffer()).then(buf => {
-      this.ctx.decodeAudioData(buf, (decoded) => {
-        this._bgmBuffer = decoded;
-        callback(decoded);
-      });
-    }).catch(() => {});
-  },
+  _volumes: { home: 0.6, quiz: 0.35, result: 0.5 },
 
   startBGM(type) {
     if (!this.ctx || !this.enabled) return;
-    if (this._bgmType === type) return;
-    this.stopBGM();
 
-    this.bgmGain = this.ctx.createGain();
-    this.bgmGain.gain.value = 0;
-    this.bgmGain.connect(this.ctx.destination);
-    this._bgmType = type;
+    // 首次：加载并开始播放
+    if (!this._bgmStarted) {
+      this._bgmStarted = true;
+      this.bgmGain = this.ctx.createGain();
+      this.bgmGain.gain.value = 0;
+      this.bgmGain.connect(this.ctx.destination);
 
-    if (type === 'home') {
-      // 用户提供的音频文件
-      this._loadBGM('assets/audio/bgm-home.mp3', (buf) => {
-        if (this._bgmType !== 'home') return;
+      const loadAndPlay = (buf) => {
         const src = this.ctx.createBufferSource();
         src.buffer = buf; src.loop = true;
         src.connect(this.bgmGain); src.start();
         this._bgmSrc = src;
-        this.bgmGain.gain.linearRampToValueAtTime(0.5, this.ctx.currentTime + 1.5);
-      });
-    } else if (type === 'quiz') {
-      [41, 82].forEach(f => {
-        const osc = this.ctx.createOscillator();
-        osc.type = 'sine'; osc.frequency.value = f;
-        osc.connect(this.bgmGain); osc.start();
-        this._bgmOscs.push(osc);
-      });
-      this.bgmGain.gain.linearRampToValueAtTime(0.04, this.ctx.currentTime + 0.5);
-    } else if (type === 'result') {
-      [147, 220, 247, 196].forEach(f => {
-        const osc = this.ctx.createOscillator();
-        osc.type = 'triangle'; osc.frequency.value = f;
-        const subGain = this.ctx.createGain();
-        subGain.gain.value = 0.06;
-        osc.connect(subGain); subGain.connect(this.bgmGain);
-        osc.start();
-        this._bgmOscs.push(osc);
-      });
-      this.bgmGain.gain.linearRampToValueAtTime(0.12, this.ctx.currentTime + 1.5);
+        const vol = this._volumes[type] || 0.5;
+        this.bgmGain.gain.linearRampToValueAtTime(vol, this.ctx.currentTime + 1);
+      };
+
+      if (this._bgmBuffer) {
+        loadAndPlay(this._bgmBuffer);
+      } else {
+        fetch('assets/audio/bgm-home.mp3')
+          .then(r => r.arrayBuffer())
+          .then(buf => {
+            this.ctx.decodeAudioData(buf, (decoded) => {
+              this._bgmBuffer = decoded;
+              loadAndPlay(decoded);
+            });
+          })
+          .catch(e => console.log('BGM load error:', e));
+      }
+      return;
+    }
+
+    // 已播放，只调音量
+    const vol = this._volumes[type] || 0.5;
+    if (this.bgmGain && this.ctx) {
+      this.bgmGain.gain.linearRampToValueAtTime(vol, this.ctx.currentTime + 0.5);
     }
   },
 
@@ -161,11 +152,9 @@ const AudioManager = {
       try { this.bgmGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.3); } catch(e) {}
     }
     setTimeout(() => {
-      this._bgmOscs.forEach(o => { try { o.stop(); } catch(e) {} });
-      this._bgmOscs = [];
       if (this._bgmSrc) { try { this._bgmSrc.stop(); } catch(e) {}; this._bgmSrc = null; }
       if (this.bgmGain) { try { this.bgmGain.disconnect(); } catch(e) {}; this.bgmGain = null; }
-      this._bgmType = null;
+      this._bgmStarted = false;
     }, 350);
   }
 };

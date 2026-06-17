@@ -39,7 +39,6 @@ const App = {
       await AudioManager.unlock();
       this._unlocked = true;
       AudioManager.btnTap();
-      AudioManager.stopBGM();
       AudioManager.startBGM('quiz');
       this.go('quiz');
     });
@@ -56,7 +55,6 @@ const App = {
 
     // Retry
     document.getElementById('btn-retry').addEventListener('click', () => {
-      AudioManager.stopBGM();
       AudioManager.startBGM('home');
       this.go('home');
     });
@@ -115,7 +113,6 @@ const App = {
       this.state.currentQ++;
       if (this.state.currentQ >= QUIZ_DATA.length) {
         AudioManager.reveal();
-        AudioManager.stopBGM();
         AudioManager.startBGM('result');
         this.go('result');
       } else {
