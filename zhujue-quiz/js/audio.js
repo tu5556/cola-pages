@@ -1,38 +1,85 @@
 // 《主角》问答 H5 — 音频系统
-// Web Audio API 合成音效 + BGM 框架 + 静音切换
+// BGM: HTML5 <audio> | SFX: Web Audio API
 
 const AudioManager = {
   ctx: null,
   enabled: true,
-  bgmNode: null,
-  bgmGain: null,
+  bgm: null,
+
+  _volumes: { home: 0.6, quiz: 0.25, result: 0.5 },
 
   init() {
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-    } catch (e) {
-      this.enabled = false;
+    } catch (e) {}
+    this.bgm = document.getElementById('bgm');
+    if (this.bgm) {
+      this.bgm.volume = 0;
+      this.bgm.load();
     }
   },
 
   async unlock() {
-    if (!this.ctx) return;
-    if (this.ctx.state === 'suspended') {
+    if (this.bgm) {
+      try { await this.bgm.play(); this.bgm.pause(); } catch(e) {}
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
       await this.ctx.resume();
     }
   },
 
   toggle() {
     this.enabled = !this.enabled;
-    if (this.bgmGain) {
-      this.bgmGain.gain.value = this.enabled ? 0.5 : 0;
+    if (this.bgm) {
+      this.bgm.volume = this.enabled ? 0.5 : 0;
     }
     const btn = document.getElementById('audio-toggle');
     if (btn) btn.textContent = this.enabled ? '🔊' : '🔇';
     return this.enabled;
   },
 
-  // --- SFX 合成 ---
+  // ---- BGM (HTML5 audio) ----
+
+  startBGM(type) {
+    if (!this.bgm || !this.enabled) return;
+    const vol = this._volumes[type] || 0.3;
+
+    if (this.bgm.paused) {
+      this.bgm.volume = 0;
+      this.bgm.play().then(() => {
+        this._fadeTo(vol);
+      }).catch(e => {
+        console.log('BGM play blocked:', e);
+      });
+    } else {
+      this._fadeTo(vol);
+    }
+  },
+
+  _fadeTo(targetVol) {
+    if (!this.bgm) return;
+    const step = 0.03;
+    const interval = 50;
+    const steps = 20;
+    const delta = (targetVol - this.bgm.volume) / steps;
+    let i = 0;
+    clearInterval(this._fadeTimer);
+    this._fadeTimer = setInterval(() => {
+      i++;
+      let v = this.bgm.volume + delta;
+      if (i >= steps) { v = targetVol; clearInterval(this._fadeTimer); }
+      this.bgm.volume = Math.max(0, Math.min(1, v));
+    }, interval);
+  },
+
+  stopBGM() {
+    if (this.bgm) {
+      this.bgm.pause();
+      this.bgm.currentTime = 0;
+    }
+  },
+
+  // ---- SFX (Web Audio API) ----
 
   _playTone(freq, type, duration, vol = 0.15, ramp = true) {
     if (!this.enabled || !this.ctx) return;
@@ -96,65 +143,5 @@ const AudioManager = {
   },
   done() {
     this._playTone(2000, 'triangle', 0.15, 0.1);
-  },
-
-  // --- BGM (单曲贯穿，不同页面不同音量) ---
-  _bgmSrc: null,
-  _bgmBuffer: null,
-  _bgmStarted: false,
-
-  _volumes: { home: 0.6, quiz: 0.35, result: 0.5 },
-
-  startBGM(type) {
-    if (!this.ctx || !this.enabled) return;
-
-    // 首次：加载并开始播放
-    if (!this._bgmStarted) {
-      this._bgmStarted = true;
-      this.bgmGain = this.ctx.createGain();
-      this.bgmGain.gain.value = 0;
-      this.bgmGain.connect(this.ctx.destination);
-
-      const loadAndPlay = (buf) => {
-        const src = this.ctx.createBufferSource();
-        src.buffer = buf; src.loop = true;
-        src.connect(this.bgmGain); src.start();
-        this._bgmSrc = src;
-        const vol = this._volumes[type] || 0.5;
-        this.bgmGain.gain.linearRampToValueAtTime(vol, this.ctx.currentTime + 1);
-      };
-
-      if (this._bgmBuffer) {
-        loadAndPlay(this._bgmBuffer);
-      } else {
-        fetch('assets/audio/bgm-home.mp3')
-          .then(r => r.arrayBuffer())
-          .then(buf => {
-            this.ctx.decodeAudioData(buf, (decoded) => {
-              this._bgmBuffer = decoded;
-              loadAndPlay(decoded);
-            });
-          })
-          .catch(e => console.log('BGM load error:', e));
-      }
-      return;
-    }
-
-    // 已播放，只调音量
-    const vol = this._volumes[type] || 0.5;
-    if (this.bgmGain && this.ctx) {
-      this.bgmGain.gain.linearRampToValueAtTime(vol, this.ctx.currentTime + 0.5);
-    }
-  },
-
-  stopBGM() {
-    if (this.bgmGain && this.ctx) {
-      try { this.bgmGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.3); } catch(e) {}
-    }
-    setTimeout(() => {
-      if (this._bgmSrc) { try { this._bgmSrc.stop(); } catch(e) {}; this._bgmSrc = null; }
-      if (this.bgmGain) { try { this.bgmGain.disconnect(); } catch(e) {}; this.bgmGain = null; }
-      this._bgmStarted = false;
-    }, 350);
   }
 };
