@@ -34,12 +34,15 @@ const App = {
   },
 
   bindEvents() {
-    // Home CTA
-    document.getElementById('btn-start').addEventListener('click', async () => {
-      await AudioManager.unlock();
-      this._unlocked = true;
+    // Home CTA — bgm.play() must be synchronous for WeChat Android
+    document.getElementById('btn-start').addEventListener('click', () => {
+      const bgm = document.getElementById('bgm');
+      if (bgm && bgm.paused) {
+        bgm.volume = 0;
+        bgm.play().then(() => AudioManager._fadeTo(0.25)).catch(() => {});
+      }
+      AudioManager.unlock();
       AudioManager.btnTap();
-      AudioManager.startBGM('quiz');
       this.go('quiz');
     });
 
