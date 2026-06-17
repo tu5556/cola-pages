@@ -22,6 +22,20 @@ const App = {
     if (target) target.classList.add('active');
     this.state.phase = phase;
 
+    // Video control
+    const video = document.getElementById('home-video');
+    if (phase === 'home' && video) {
+      video.currentTime = 0;
+      // Try autoplay (muted first for mobile, then unmute)
+      video.muted = true;
+      video.play().then(() => {
+        video.muted = false;
+      }).catch(() => {});
+    }
+    if (phase !== 'home' && video) {
+      video.pause();
+    }
+
     if (phase === 'quiz') {
       this.state.currentQ = 0;
       this.state.score = 0;
@@ -36,6 +50,10 @@ const App = {
   bindEvents() {
     // Home CTA — bgm.play() must be synchronous for WeChat Android
     document.getElementById('btn-start').addEventListener('click', () => {
+      // Stop video
+      const video = document.getElementById('home-video');
+      if (video) { video.pause(); video.muted = true; }
+      // Start mp3 BGM
       const bgm = document.getElementById('bgm');
       if (bgm && bgm.paused) {
         bgm.volume = 0;
@@ -58,7 +76,7 @@ const App = {
 
     // Retry
     document.getElementById('btn-retry').addEventListener('click', () => {
-      AudioManager.startBGM('home');
+      AudioManager.stopBGM();
       this.go('home');
     });
 
