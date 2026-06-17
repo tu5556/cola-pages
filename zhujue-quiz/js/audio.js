@@ -98,9 +98,21 @@ const AudioManager = {
     this._playTone(2000, 'triangle', 0.15, 0.1);
   },
 
-  // --- BGM 合成 ---
+  // --- BGM ---
   _bgmOscs: [],
+  _bgmSrc: null,
+  _bgmBuffer: null,
   _bgmType: null,
+
+  _loadBGM(url, callback) {
+    if (this._bgmBuffer) return callback(this._bgmBuffer);
+    fetch(url).then(r => r.arrayBuffer()).then(buf => {
+      this.ctx.decodeAudioData(buf, (decoded) => {
+        this._bgmBuffer = decoded;
+        callback(decoded);
+      });
+    }).catch(() => {});
+  },
 
   startBGM(type) {
     if (!this.ctx || !this.enabled) return;
@@ -113,13 +125,15 @@ const AudioManager = {
     this._bgmType = type;
 
     if (type === 'home') {
-      [55, 110, 165].forEach(f => {
-        const osc = this.ctx.createOscillator();
-        osc.type = 'sine'; osc.frequency.value = f;
-        osc.connect(this.bgmGain); osc.start();
-        this._bgmOscs.push(osc);
+      // 用户提供的音频文件
+      this._loadBGM('assets/audio/bgm-home.mp3', (buf) => {
+        if (this._bgmType !== 'home') return;
+        const src = this.ctx.createBufferSource();
+        src.buffer = buf; src.loop = true;
+        src.connect(this.bgmGain); src.start();
+        this._bgmSrc = src;
+        this.bgmGain.gain.linearRampToValueAtTime(0.5, this.ctx.currentTime + 1.5);
       });
-      this.bgmGain.gain.linearRampToValueAtTime(0.08, this.ctx.currentTime + 1);
     } else if (type === 'quiz') {
       [41, 82].forEach(f => {
         const osc = this.ctx.createOscillator();
@@ -149,6 +163,7 @@ const AudioManager = {
     setTimeout(() => {
       this._bgmOscs.forEach(o => { try { o.stop(); } catch(e) {} });
       this._bgmOscs = [];
+      if (this._bgmSrc) { try { this._bgmSrc.stop(); } catch(e) {}; this._bgmSrc = null; }
       if (this.bgmGain) { try { this.bgmGain.disconnect(); } catch(e) {}; this.bgmGain = null; }
       this._bgmType = null;
     }, 350);
